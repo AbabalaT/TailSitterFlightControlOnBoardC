@@ -39,7 +39,7 @@ uint8_t is_load;
 uint8_t pre_is_load = 0x12;
 float fdata[16];
 
-uint16_t motor_idle_speed = 1050;
+uint16_t motor_idle_speed = 1070;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart6;
 
@@ -60,8 +60,8 @@ extern float target_velocity[3];
 extern void usart6_tx_dma_enable(uint8_t *data, uint16_t len);
 
 
-float servo_left_center = 1600.0f;
-float servo_right_center = 1600.0f;
+float servo_left_center = 1500.0f;
+float servo_right_center = 1500.0f;
 
 
 uint16_t door_open_pwm = 2100;
@@ -92,7 +92,7 @@ float safe_dp  = 25.0f;
 float pid_safe_dp[3];
 
 float kalman_q = 5000.0f;
-float kalman_r = 10000000.0f;
+float kalman_r = 150000000.0f;
 
 float u_real_roll = 0.0f;
 float u_real_pitch = 0.0f;
@@ -170,31 +170,31 @@ void pid_init(void){
 
 void pid_set_empty(void){
 	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 750.0f;//232.55f;
-	mat_pid[0][2] = 0.25;
-	mat_pid[0][3] = 30.0;
+	mat_pid[0][1] = 150.0f;//232.55f;
+	mat_pid[0][2] = 0.032;
+	mat_pid[0][3] = 5.0;
 	
 	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 500.0f;//697.6f;
-	mat_pid[1][2] = 0.2;
-	mat_pid[1][3] = 30.0;
+	mat_pid[1][1] = 200.0f;//697.6f;
+	mat_pid[1][2] = 0.025;
+	mat_pid[1][3] = 20.0;
 	
 	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 50.0f;//139.53f;
-	mat_pid[2][2] = 0.035f;//0.24f;
-	mat_pid[2][3] = 75.0;
+	mat_pid[2][1] = 800.0f;//139.53f;
+	mat_pid[2][2] = 0.9f;//0.24f;
+	mat_pid[2][3] = 30.0;
 	
-	angle_pid_mat[0][0] = 2.4;
+	angle_pid_mat[0][0] = 1.3;
 	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
 	angle_pid_mat[0][2] = 0.2f;
 	
-	angle_pid_mat[1][0] = 2.2;
+	angle_pid_mat[1][0] = 0.9;
 	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
-	angle_pid_mat[1][2] = 0.3f;
+	angle_pid_mat[1][2] = 1.2f;
 	
-	angle_pid_mat[2][0] = 2.0;
+	angle_pid_mat[2][0] = 1.3;
 	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
-	angle_pid_mat[2][2] = 0.8f;
+	angle_pid_mat[2][2] = 0.2f;
 	
 	hover_dp= 45.0f;
 }
@@ -350,11 +350,11 @@ float pid_yaw(float target, float real){
 	error = target - real;
 	sum = sum + error;
 	
-	if(sum > 1000.0f){
-		sum = 1000.0;
+	if(sum > 4000.0f){
+		sum = 4000.0;
 	}
-	if(sum < -1000.0f){
-		sum = -1000.0;
+	if(sum < -4000.0f){
+		sum = -4000.0;
 	}
 	if(error > 3.14f){
 		sum = 0.0f;
@@ -368,7 +368,11 @@ float pid_yaw(float target, float real){
 	if(arm_mode == 0){
 		sum = 0.0f;
 	}
-	
+	if(sum > 0.05 || sum < -0.05){
+		summing = 0xff;
+	}else{
+		summing = 0x00;
+	}
 //	error_rate = -1.0f * real - pre_error;
 //	pre_error = -1.0f * real;
 	
@@ -703,7 +707,8 @@ void chassis_task(void const *pvParameters)
 					arm_mode = 0x00;
 				}
 				
-				if(Sbus_ctrl.ch[8] > 1500){
+				//if(Sbus_ctrl.ch[8] > 1500){
+				if(0){
 					stick_mode = stick_3d;
 				}else{
 					stick_mode = stick_heli;
@@ -852,10 +857,10 @@ void chassis_task(void const *pvParameters)
 						float throttle_pull_up = pid_throttle_safe(filtered_dp);
 						//throttle_in = throttle_in + throttle_pull_up;
 						
-						float f1 = throttle_in + output_yaw;
-						float f2 = throttle_in - output_yaw;
-						float a1 = output_pitch - output_roll;
-						float a2 = output_pitch + output_roll;
+						float f1 = throttle_in - output_pitch;
+						float f2 = throttle_in + output_pitch;
+						float a1 = -output_yaw - output_roll;
+						float a2 = -output_yaw + output_roll;
 						
 						if(filtered_dp > 100.0f){
 							a1 = a1 * 100.0f / filtered_dp;
