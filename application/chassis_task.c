@@ -91,9 +91,6 @@ float angle_pid_mat[3][3];
 float safe_dp  = 25.0f;
 float pid_safe_dp[3];
 
-float kalman_q = 5000.0f;
-float kalman_r = 150000000.0f;
-
 float u_real_roll = 0.0f;
 float u_real_pitch = 0.0f;
 float u_real_yaw = 0.0f;
@@ -102,39 +99,60 @@ float w_yaw_body[3];
 
 uint16_t pwm_debugging = 0xFF;
 
-float kalman_roll(float measure){
-	static float x;
-	static float p;
-	static float k;
-	p = p + kalman_q;
-	k = p / (p + kalman_r);
-	x = x + k * (measure - x);
-	p = (1.0f - k) * p;
-	return x;	
+// 定义滤波器结构体
+typedef struct
+{
+    // 滤波器系数
+    double b0, b1, b2;
+    double a1, a2;
+
+    // 滤波器状态
+    double x1, x2; // 输入状态
+    double y1, y2; // 输出状态
+} ButterworthFilter;
+
+void initButterworthFilter(ButterworthFilter* filter, double sampleRate, double cutoffFreq)
+{
+    double omega_c = 2.0 * PI * cutoffFreq / sampleRate;
+    double alpha = sin(omega_c) / 2.0;
+
+    // 计算滤波器系数
+    double b0 = (1 - cos(omega_c)) / 2;
+    double b1 = 1 - cos(omega_c);
+    double b2 = (1 - cos(omega_c)) / 2;
+    double a0 = 1 + alpha;
+    double a1 = -2 * cos(omega_c);
+    double a2 = 1 - alpha;
+
+    // 归一化系数
+    filter->b0 = b0 / a0;
+    filter->b1 = b1 / a0;
+    filter->b2 = b2 / a0;
+    filter->a1 = a1 / a0;
+    filter->a2 = a2 / a0;
+
+    // 初始化状态
+    filter->x1 = 0;
+    filter->x2 = 0;
+    filter->y1 = 0;
+    filter->y2 = 0;
 }
 
-float kalman_pitch(float measure){
-	static float x;
-	static float p;
-	static float k;
-	p = p + kalman_q;
-	k = p / (p + kalman_r);
-	x = x + k * (measure - x);
-	p = (1.0f - k) * p;
-	return x;	
+// 应用滤波器
+double applyButterworthFilter(ButterworthFilter* filter, double input)
+{
+    // 计算输出
+    double output = filter->b0 * input + filter->b1 * filter->x1 + filter->b2 * filter->x2 - filter->a1 * filter->y1 -
+        filter->a2 * filter->y2;
+    // 更新状态
+    filter->x2 = filter->x1;
+    filter->x1 = input;
+    filter->y2 = filter->y1;
+    filter->y1 = output;
+    return output;
 }
 
-float kalman_yaw(float measure){
-	static float x;
-	static float p;
-	static float k;
-	p = p + kalman_q;
-	k = p / (p + kalman_r);
-	x = x + k * (measure - x);
-	p = (1.0f - k) * p;
-	return x;	
-}
-
+ButterworthFilter omega_x_filter, omega_y_filter, omega_z_filter;
 
 
 void pid_set_empty(void){
@@ -656,6 +674,10 @@ void chassis_task(void const *pvParameters)
 		tx6_buff[7] = 0x7F;
 		cali_cnt = 0;
 		system_mode = 2;
+
+		initButterworthFilter(&omega_x_filter, 1000.0, 1.0);
+		initButterworthFilter(&omega_y_filter, 1000.0, 1.0);
+		initButterworthFilter(&omega_z_filter, 1000.0, 1.0);
 	
     while (1){
 				memcpy(&gyro_data, get_gyro_data_point(), 12);
@@ -740,10 +762,10 @@ void chassis_task(void const *pvParameters)
 				}
 
 				if(system_mode == 2){
-					float motor_left;
-					float motor_right;
-					float servo_left;
-					float servo_right;
+					float motor1;
+					float motor2;
+					float motor3;
+					float motor4;
 					
 					memcpy(&measure_quaternion, &ahrs_quaternion, 16);
 					Quaternion de_yaw_quaternion = yaw_to_quaternion(-angle_data[0]);
@@ -816,66 +838,78 @@ void chassis_task(void const *pvParameters)
 						}
 					}
 					
-					if(1){
-						imu_roll = -gyro_data[1];
-						imu_pitch = -gyro_data[0];
-						imu_yaw = gyro_data[2];
-						float roll_in = kalman_roll(imu_roll);
-						float pitch_in = kalman_pitch(imu_pitch);
-						float yaw_in = kalman_yaw(imu_yaw);
-						output_roll = pid_roll(target_velocity_roll, roll_in);
-						output_pitch = pid_pitch(target_velocity_pitch, pitch_in);
-						output_yaw = pid_yaw(target_velocity_yaw, yaw_in);
-						//memcpy(&tx6_buff[0], &throttle_in, 4);
-						usart6_tx_dma_enable(tx6_buff, 8);
+					imu_roll = -gyro_data[1];
+					imu_pitch = -gyro_data[0];
+					imu_yaw = gyro_data[2];
+					float roll_in = applyButterworthFilter(&omega_x_filter, imu_roll);
+					float pitch_in = applyButterworthFilter(&omega_y_filter, imu_pitch);
+					float yaw_in = applyButterworthFilter(&omega_z_filter, imu_yaw);
+					output_roll = pid_roll(target_velocity_roll, roll_in);
+					output_pitch = pid_pitch(target_velocity_pitch, pitch_in);
+					output_yaw = pid_yaw(target_velocity_yaw, yaw_in);
+					//memcpy(&tx6_buff[0], &throttle_in, 4);
+					usart6_tx_dma_enable(tx6_buff, 8);
 
-						float throttle_pull_up = pid_throttle_safe(filtered_dp);
-						//throttle_in = throttle_in + throttle_pull_up;
-						
-						float f1 = throttle_in - output_pitch;
-						float f2 = throttle_in + output_pitch;
-						float a1 = -output_yaw - output_roll;
-						float a2 = -output_yaw + output_roll;
-						
-						if(filtered_dp > 100.0f){
-							a1 = a1 * 100.0f / filtered_dp;
-							a2 = a2 * 100.0f / filtered_dp;
-						}
-						
-						if(f1 > 1000.0f){
-							f1 = 1000.0f;
-						}
-						if(f1 < 0.0f){
-							f1 = 0.0f;
-						}
-						if(f2 > 1000.0f){
-							f2 = 1000.0f;
-						}
-						if(f2 < 0.0f){
-							f2 = 0.0f;
-						}
-						motor_left = f1 + 1000;
-						motor_right = f2 + 1000;
-						servo_left = servo_left_center - a1;
-						servo_right = servo_right_center + a2;
-						limit_out(&servo_left);
-						limit_out(&servo_right);
+					float throttle_pull_up = pid_throttle_safe(filtered_dp);
+					//throttle_in = throttle_in + throttle_pull_up;
+					
+					float f1 = 0.0 + output_roll - output_pitch + output_yaw + throttle_in;
+					float f2 = 0.0 - output_roll - output_pitch - output_yaw + throttle_in;
+					float f3 = 0.0 + output_roll + output_pitch - output_yaw + throttle_in;
+					float f4 = 0.0 - output_roll + output_pitch + output_yaw + throttle_in;
+					
+					
+					if(f1 > 1000.0f){
+						f1 = 1000.0f;
 					}
+					if(f1 < 0.0f){
+						f1 = 0.0f;
+					}
+					if(f2 > 1000.0f){
+						f2 = 1000.0f;
+					}
+					if(f2 < 0.0f){
+						f2 = 0.0f;
+					}
+					if(f3 > 1000.0f){
+						f3 = 1000.0f;
+					}
+					if(f3 < 0.0f){
+						f3 = 0.0f;
+					}
+					if(f4 > 1000.0f){
+						f4 = 1000.0f;
+					}
+					if(f4 < 0.0f){
+						f4 = 0.0f;
+					}
+					
+					motor1 = f1 + 1000;
+					motor2 = f2 + 1000;
+					motor3 = f3 + 1000;
+					motor4 = f4 + 1000;
+
 					if(arm_mode == 0){
-						motor_left = 1000;
-						motor_right = 1000;
-						servo_left = servo_left_center;
-						servo_right = servo_right_center;
+						motor1 = 1000;
+						motor2 = 1000;
+						motor3 = 1000;
+						motor4 = 1000;
 					}else{
-						if(motor_left < motor_idle_speed){
-							motor_left = motor_idle_speed;
+						if(motor1 < motor_idle_speed){
+							motor1 = motor_idle_speed;
 						}
-						if(motor_right < motor_idle_speed){
-							motor_right = motor_idle_speed;
+						if(motor2 < motor_idle_speed){
+							motor2 = motor_idle_speed;
+						}
+						if(motor3 < motor_idle_speed){
+							motor3 = motor_idle_speed;
+						}
+						if(motor4 < motor_idle_speed){
+							motor4 = motor_idle_speed;
 						}
 					}					
 					if(pwm_debugging){
-						set_pwm(servo_right, servo_left, motor_right, motor_left);
+						set_pwm(motor1, motor2, motor3, motor4);
 					}
 				}
 				vTaskDelay(1);//PID频率:1000HZ
