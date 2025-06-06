@@ -135,62 +135,31 @@ float kalman_yaw(float measure){
 	return x;	
 }
 
-void pid_init(void){
-	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 750.0f;//232.55f;
-	mat_pid[0][2] = 0.25;
-	mat_pid[0][3] = 30.0;
-	
-	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 650.0f;//697.6f;
-	mat_pid[1][2] = 0.25;
-	mat_pid[1][3] = 45.0;
-	
-	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 125.0f;//139.53f;
-	mat_pid[2][2] = 0.06f;
-	mat_pid[2][3] = 1400.0;
-	
-	angle_pid_mat[0][0] = 2.0;
-	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
-	angle_pid_mat[0][2] = 0.05f;
-	
-	angle_pid_mat[1][0] = 2.0;
-	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
-	angle_pid_mat[1][2] = 0.01f;
-	
-	angle_pid_mat[2][0] = 1.8;
-	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
-	angle_pid_mat[2][2] = 0.06f;
-	
-	pid_safe_dp[0] = 12.5f;
-	pid_safe_dp[1] = 0.25f;
-	pid_safe_dp[2] = 20.0f;
-}
+
 
 void pid_set_empty(void){
 	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 150.0f;//232.55f;
-	mat_pid[0][2] = 0.032;
-	mat_pid[0][3] = 5.0;
+	mat_pid[0][1] = 120.0f;//232.55f;
+	mat_pid[0][2] = 0.02;
+	mat_pid[0][3] = 4.5;
 	
 	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 200.0f;//697.6f;
-	mat_pid[1][2] = 0.025;
-	mat_pid[1][3] = 20.0;
+	mat_pid[1][1] = 57.0f;//697.6f;
+	mat_pid[1][2] = 0.078;
+	mat_pid[1][3] = 8.0;
 	
 	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 800.0f;//139.53f;
-	mat_pid[2][2] = 0.9f;//0.24f;
-	mat_pid[2][3] = 30.0;
+	mat_pid[2][1] = 1400.0f;//139.53f;
+	mat_pid[2][2] = 0.035f;//0.24f;
+	mat_pid[2][3] = 32.0;
 	
 	angle_pid_mat[0][0] = 1.3;
 	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
 	angle_pid_mat[0][2] = 0.2f;
 	
-	angle_pid_mat[1][0] = 0.9;
+	angle_pid_mat[1][0] = 0.7;
 	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
-	angle_pid_mat[1][2] = 1.2f;
+	angle_pid_mat[1][2] = 1.4f;
 	
 	angle_pid_mat[2][0] = 1.3;
 	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
@@ -201,63 +170,69 @@ void pid_set_empty(void){
 
 void pid_set_light(void){
 	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 750.0f;//232.55f;
-	mat_pid[0][2] = 0.25;
-	mat_pid[0][3] = 30.0;
+	mat_pid[0][1] = 120.0f;//232.55f;
+	mat_pid[0][2] = 0.02;
+	mat_pid[0][3] = 4.5;
 	
 	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 650.0f;//697.6f;
-	mat_pid[1][2] = 0.25;
-	mat_pid[1][3] = 45.0;
+	mat_pid[1][1] = 57.0f;//697.6f;
+	mat_pid[1][2] = 0.078;
+	mat_pid[1][3] = 8.0;
 	
 	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 125.0f;//139.53f;
-	mat_pid[2][2] = 0.06f;
-	mat_pid[2][3] = 1400.0;
+	mat_pid[2][1] = 1400.0f;//139.53f;
+	mat_pid[2][2] = 0.035f;//0.24f;
+	mat_pid[2][3] = 32.0;
 	
-	angle_pid_mat[0][0] = 2.0;
+	angle_pid_mat[0][0] = 1.3;
 	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
-	angle_pid_mat[0][2] = 0.05f;
+	angle_pid_mat[0][2] = 0.2f;
 	
-	angle_pid_mat[1][0] = 2.0;
+	angle_pid_mat[1][0] = 0.7;
 	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
-	angle_pid_mat[1][2] = 0.01f;
+	angle_pid_mat[1][2] = 1.4f;
 	
-	angle_pid_mat[2][0] = 1.8;
+	angle_pid_mat[2][0] = 1.3;
 	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
-	angle_pid_mat[2][2] = 0.06f;
+	angle_pid_mat[2][2] = 0.2f;
+	
+	hover_dp= 45.0f;
 }
 
 void pid_set_heavy(void){
 	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 450.0f;//232.55f;
-	mat_pid[0][2] = 0.25;
-	mat_pid[0][3] = 18.0;
+	mat_pid[0][1] = 120.0f;//232.55f;
+	mat_pid[0][2] = 0.02;
+	mat_pid[0][3] = 4.5;
 	
 	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 550.0f;//697.6f;
-	mat_pid[1][2] = 0.22;
-	mat_pid[1][3] = 45.0;
+	mat_pid[1][1] = 57.0f;//697.6f;
+	mat_pid[1][2] = 0.078;
+	mat_pid[1][3] = 8.0;
 	
 	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 120.0f;//139.53f;
-	mat_pid[2][2] = 0.06f;
-	mat_pid[2][3] = 1400.0;
+	mat_pid[2][1] = 1400.0f;//139.53f;
+	mat_pid[2][2] = 0.035f;//0.24f;
+	mat_pid[2][3] = 32.0;
 	
-	angle_pid_mat[0][0] = 2.0;
+	angle_pid_mat[0][0] = 1.3;
 	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
 	angle_pid_mat[0][2] = 0.2f;
 	
-	angle_pid_mat[1][0] = 2.0;
+	angle_pid_mat[1][0] = 0.7;
 	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
-	angle_pid_mat[1][2] = 0.1f;
+	angle_pid_mat[1][2] = 1.4f;
 	
-	angle_pid_mat[2][0] = 1.8;
+	angle_pid_mat[2][0] = 1.3;
 	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
-	angle_pid_mat[2][2] = 0.1f;
-	hover_dp = 100.0f;
+	angle_pid_mat[2][2] = 0.2f;
+	
+	hover_dp= 45.0f;
 }
 
+void pid_init(void){
+	pid_set_empty();
+}
 
 uint8_t summing = 0;
 float pid_N = 0.75f;
