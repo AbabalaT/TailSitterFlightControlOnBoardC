@@ -160,15 +160,15 @@ void detect_task(void const *pvParameters)
     while (1)
     {
         if(ctrl_mode != 2){
-				play(1, 7, 200, 10);
-				play(1, 1, 200, 10);
-				play(1, 7, 200, 10);
-				play(1, 1, 200, 200);
+				//play(1, 7, 200, 10);
+				//play(1, 1, 200, 10);
+				//play(1, 7, 200, 10);
+				//play(1, 1, 200, 200);
         }
         if(door_open){
             if(arm_mode == 0){
                 for(uint16_t warn_psc=191; warn_psc > 101; warn_psc = warn_psc - 5){
-                    buzzer_on(warn_psc, 480);
+                    //buzzer_on(warn_psc, 480);
                     vTaskDelay(20);
                     if(door_open == 0){
                         break;
@@ -180,7 +180,7 @@ void detect_task(void const *pvParameters)
                 buzzer_off();
                 vTaskDelay(50);
                 for(uint16_t warn_psc=191; warn_psc > 101; warn_psc = warn_psc - 5){
-                    buzzer_on(warn_psc, 480);
+                    //buzzer_on(warn_psc, 480);
                     vTaskDelay(20);
                     if(door_open == 0){
                         break;
@@ -204,82 +204,11 @@ void detect_task(void const *pvParameters)
             buzzer_off();
         }
         if(battery_voltage < 11.5f){
-            play(0, 1, 600, 200);
-            play(0, 1, 600, 200);
-            play(0, 1, 600, 200);
+            //play(0, 1, 600, 200);
+            //play(0, 1, 600, 200);
+            //play(0, 1, 600, 200);
         }
-        static uint8_t error_num_display = 0;
-        system_time = xTaskGetTickCount();
-				
-        error_num_display = ERROR_LIST_LENGHT;
-        error_list[ERROR_LIST_LENGHT].is_lost = 0;
-        error_list[ERROR_LIST_LENGHT].error_exist = 0;
-
-        for (int i = 0; i < ERROR_LIST_LENGHT; i++)
-        {
-            //disable, continue
-            //未使能，跳过
-            if (error_list[i].enable == 0)
-            {
-                continue;
-            }
-
-            //judge offline.判断掉线
-            if (system_time - error_list[i].new_time > error_list[i].set_offline_time)
-            {
-                if (error_list[i].error_exist == 0)
-                {
-                    //record error and time
-                    //记录错误以及掉线时间
-                    error_list[i].is_lost = 1;
-                    error_list[i].error_exist = 1;
-                    error_list[i].lost_time = system_time;
-                }
-                //judge the priority,save the highest priority ,
-                //判断错误优先级， 保存优先级最高的错误码
-                if (error_list[i].priority > error_list[error_num_display].priority)
-                {
-                    error_num_display = i;
-                }
-                
-
-                error_list[ERROR_LIST_LENGHT].is_lost = 1;
-                error_list[ERROR_LIST_LENGHT].error_exist = 1;
-                //if solve_lost_fun != NULL, run it
-                //如果提供解决函数，运行解决函数
-                if (error_list[i].solve_lost_fun != NULL)
-                {
-                    error_list[i].solve_lost_fun();
-                }
-            }
-            else if (system_time - error_list[i].work_time < error_list[i].set_online_time)
-            {
-                //just online, maybe unstable, only record
-                //刚刚上线，可能存在数据不稳定，只记录不丢失，
-                error_list[i].is_lost = 0;
-                error_list[i].error_exist = 1;
-            }
-            else
-            {
-                error_list[i].is_lost = 0;
-                //判断是否存在数据错误
-                //judge if exist data error
-                if (error_list[i].data_is_error != NULL)
-                {
-                    error_list[i].error_exist = 1;
-                }
-                else
-                {
-                    error_list[i].error_exist = 0;
-                }
-                //calc frequency
-                //计算频率
-                if (error_list[i].new_time > error_list[i].last_time)
-                {
-                    error_list[i].frequency = configTICK_RATE_HZ / (fp32)(error_list[i].new_time - error_list[i].last_time);
-                }
-            }
-        }
+        
 
         vTaskDelay(DETECT_CONTROL_TIME);
 #if INCLUDE_uxTaskGetStackHighWaterMark

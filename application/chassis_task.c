@@ -20,7 +20,6 @@ typedef struct {
 } Quaternion;
 
 fp32 ahrs_quaternion[4] = {1.0, 0.0, 0.0, 0.0};
-fp32 throttle_idle = 60.0f;
 
 int cali_cnt;
 float cali_imu_num;
@@ -30,20 +29,22 @@ extern Sbus_ctrl_t Sbus_ctrl;
 extern uint16_t servo_pwm[6];
 
 fp32 gyro_data[3], angle_data[3];
-uint8_t rc_state_pre = 2;
-
-uint8_t useless = 0x00;
 
 uint8_t ctrl_mode = 0;
-uint8_t is_load;
-uint8_t pre_is_load = 0x12;
+uint8_t ctrl_mode_stick = 0;
+uint8_t ctrl_mode_allow_offboard = 0;
+
 float fdata[16];
 
 uint16_t motor_idle_speed = 1070;
+
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart6;
 
 uint8_t arm_mode = 0;
+uint8_t arm_mode_stick = 0;
+uint8_t arm_mode_stick_pre = 0;
+
 uint8_t system_mode = 0;
 uint8_t door_open = 0;
 uint8_t pre_door_open = 0;
@@ -58,20 +59,6 @@ float d_ch(uint8_t ch_required){
 
 extern float target_velocity[3];
 extern void usart6_tx_dma_enable(uint8_t *data, uint16_t len);
-
-
-float servo_left_center = 1500.0f;
-float servo_right_center = 1500.0f;
-
-
-uint16_t door_open_pwm = 2100;
-uint16_t door_close_pwm = 875;
-
-extern float motor_L;
-extern float motor_R;
-extern float servo_L;
-extern float servo_R;
-extern float filtered_dp;
 
 float using_dp = 0.0f;
 float hover_dp = 45.0f;
@@ -155,182 +142,106 @@ double applyButterworthFilter(ButterworthFilter* filter, double input)
 ButterworthFilter omega_x_filter, omega_y_filter, omega_z_filter;
 
 
-void pid_set_empty(void){
-	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 120.0f;//232.55f;
-	mat_pid[0][2] = 0.02;
-	mat_pid[0][3] = 4.5;
-	
-	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 57.0f;//697.6f;
-	mat_pid[1][2] = 0.078;
-	mat_pid[1][3] = 8.0;
-	
-	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 1400.0f;//139.53f;
-	mat_pid[2][2] = 0.035f;//0.24f;
-	mat_pid[2][3] = 32.0;
-	
-	angle_pid_mat[0][0] = 1.3;
-	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
-	angle_pid_mat[0][2] = 0.2f;
-	
-	angle_pid_mat[1][0] = 0.7;
-	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
-	angle_pid_mat[1][2] = 1.4f;
-	
-	angle_pid_mat[2][0] = 1.3;
-	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
-	angle_pid_mat[2][2] = 0.2f;
-	
-	hover_dp= 45.0f;
-}
+//void pid_set_empty(void){
+//	mat_pid[0][0] = 0.0;
+//	mat_pid[0][1] = 120.0f;//232.55f;
+//	mat_pid[0][2] = 0.02;
+//	mat_pid[0][3] = 4.5;
+//	
+//	mat_pid[1][0] = 0.0;
+//	mat_pid[1][1] = 57.0f;//697.6f;
+//	mat_pid[1][2] = 0.078;
+//	mat_pid[1][3] = 8.0;
+//	
+//	mat_pid[2][0] = 0.0;
+//	mat_pid[2][1] = 1400.0f;//139.53f;
+//	mat_pid[2][2] = 0.035f;//0.24f;
+//	mat_pid[2][3] = 32.0;
+//	
+//	angle_pid_mat[0][0] = 1.3;
+//	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
+//	angle_pid_mat[0][2] = 0.2f;
+//	
+//	angle_pid_mat[1][0] = 0.7;
+//	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
+//	angle_pid_mat[1][2] = 1.4f;
+//	
+//	angle_pid_mat[2][0] = 1.3;
+//	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
+//	angle_pid_mat[2][2] = 0.2f;
+//	
+//	hover_dp= 45.0f;
+//}
 
-void pid_set_light(void){
-	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 120.0f;//232.55f;
-	mat_pid[0][2] = 0.02;
-	mat_pid[0][3] = 4.5;
-	
-	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 57.0f;//697.6f;
-	mat_pid[1][2] = 0.078;
-	mat_pid[1][3] = 8.0;
-	
-	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 1400.0f;//139.53f;
-	mat_pid[2][2] = 0.035f;//0.24f;
-	mat_pid[2][3] = 32.0;
-	
-	angle_pid_mat[0][0] = 1.3;
-	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
-	angle_pid_mat[0][2] = 0.2f;
-	
-	angle_pid_mat[1][0] = 0.7;
-	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
-	angle_pid_mat[1][2] = 1.4f;
-	
-	angle_pid_mat[2][0] = 1.3;
-	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
-	angle_pid_mat[2][2] = 0.2f;
-	
-	hover_dp= 45.0f;
-}
+//void pid_set_light(void){
+//	mat_pid[0][0] = 0.0;
+//	mat_pid[0][1] = 120.0f;//232.55f;
+//	mat_pid[0][2] = 0.02;
+//	mat_pid[0][3] = 4.5;
+//	
+//	mat_pid[1][0] = 0.0;
+//	mat_pid[1][1] = 57.0f;//697.6f;
+//	mat_pid[1][2] = 0.078;
+//	mat_pid[1][3] = 8.0;
+//	
+//	mat_pid[2][0] = 0.0;
+//	mat_pid[2][1] = 1400.0f;//139.53f;
+//	mat_pid[2][2] = 0.035f;//0.24f;
+//	mat_pid[2][3] = 32.0;
+//	
+//	angle_pid_mat[0][0] = 1.3;
+//	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
+//	angle_pid_mat[0][2] = 0.2f;
+//	
+//	angle_pid_mat[1][0] = 0.7;
+//	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
+//	angle_pid_mat[1][2] = 1.4f;
+//	
+//	angle_pid_mat[2][0] = 1.3;
+//	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
+//	angle_pid_mat[2][2] = 0.2f;
+//	
+//	hover_dp= 45.0f;
+//}
 
 void pid_set_heavy(void){
 	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 120.0f;//232.55f;
-	mat_pid[0][2] = 0.02;
-	mat_pid[0][3] = 4.5;
+	mat_pid[0][1] = 100.0f;
+	mat_pid[0][2] = 0.0;
+	mat_pid[0][3] = 0.0;
 	
 	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 57.0f;//697.6f;
-	mat_pid[1][2] = 0.078;
-	mat_pid[1][3] = 8.0;
+	mat_pid[1][1] = 100.0f;
+	mat_pid[1][2] = 0.0;
+	mat_pid[1][3] = 0.0;
 	
 	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 1400.0f;//139.53f;
-	mat_pid[2][2] = 0.035f;//0.24f;
-	mat_pid[2][3] = 32.0;
+	mat_pid[2][1] = 100.0f;
+	mat_pid[2][2] = 0.0f;
+	mat_pid[2][3] = 0.0f;
 	
-	angle_pid_mat[0][0] = 1.3;
-	angle_pid_mat[0][1] = 0.0f;//0.00006;//232.55f;
+	angle_pid_mat[0][0] = 1.5;
+	angle_pid_mat[0][1] = 0.0f;
 	angle_pid_mat[0][2] = 0.2f;
 	
-	angle_pid_mat[1][0] = 0.7;
-	angle_pid_mat[1][1] = 0.0f;//0.00002f;//697.6f;
-	angle_pid_mat[1][2] = 1.4f;
+	angle_pid_mat[1][0] = 1.5;
+	angle_pid_mat[1][1] = 0.0f;
+	angle_pid_mat[1][2] = 0.2f;
 	
-	angle_pid_mat[2][0] = 1.3;
-	angle_pid_mat[2][1] = 0.0f;//0.000045f;//139.53f;
+	angle_pid_mat[2][0] = 1.5;
+	angle_pid_mat[2][1] = 0.0f;
 	angle_pid_mat[2][2] = 0.2f;
-	
-	hover_dp= 45.0f;
 }
 
 void pid_init(void){
-	pid_set_empty();
+	pid_set_heavy();
 }
 
 uint8_t summing = 0;
+
 float pid_N = 0.75f;
 
-float pid_roll(float target, float real){
-	static float error;
-	static float sum;
-	static float pre_error;
-	static float result;
-	static float error_rate;
-	error = target - real;
-	sum = sum + error;
-	if(sum > 1000.0f){
-		sum = 1000.0f;
-	}
-	if(sum < -2000.0f){
-		sum = -2000.0f;
-	}
-	if(error > 3.14f){
-		sum = 0.0f;
-	}
-	if(error < -3.14f){
-		sum = 0.0f;
-	}
-	if(throttle_set < 100.0f){
-		sum = 0.0f;
-	}
-	if(arm_mode == 0){
-		sum = 0.0f;
-	}
-	
-//	error_rate = -1.0f * real - pre_error;
-//	pre_error = -1.0f * real;
-	
-	error_rate = error - pre_error;
-	pre_error = error;
-	result = mat_pid[0][0]*target + mat_pid[0][1]*error + mat_pid[0][2]*sum + mat_pid[0][3]*error_rate;
-	return result;
-}
-
-float pid_pitch(float target, float real){
-	static float error;
-	static float sum;
-	static float pre_error;
-	static float result;
-	static float error_rate;
-	error = target - real;
-	sum = sum + error;
-	if(sum > 1000.0f){
-		sum = 1000.0f;
-	}
-	if(sum < -1000.0f){
-		sum = -1000.0f;
-	}
-	if(error > 3.14f){
-		sum = 0.0f;
-	}
-	if(error < -3.14f){
-		sum = 0.0f;
-	}
-	if(throttle_set < 100.0f){
-		sum = 0.0f;
-	}
-	if(arm_mode == 0){
-		sum = 0.0f;
-	}
-	
-//	error_rate = -1.0f * real - pre_error;
-//	pre_error = -1.0f * real;
-
-	error_rate = error - pre_error;
-	pre_error = error;
-
-	result = mat_pid[1][0]*target + mat_pid[1][1]*error + mat_pid[1][2]*sum + mat_pid[1][3]*error_rate;
-	return result;
-}
-
-
-
-float pid_yaw(float target, float real){
+float pid_roll(float target, float real, float dt){
 	static float error;
 	static float sum;
 	static float pre_error;
@@ -341,14 +252,15 @@ float pid_yaw(float target, float real){
 	static float d_error;
 	
 	error = target - real;
-	sum = sum + error;
+	sum = sum + error * dt;
 	
-	if(sum > 4000.0f){
-		sum = 4000.0;
+	if(sum > 3.0f){
+		sum = 3.0;
 	}
-	if(sum < -4000.0f){
-		sum = -4000.0;
+	if(sum < -3.0f){
+		sum = -3.0;
 	}
+	
 	if(error > 3.14f){
 		sum = 0.0f;
 	}
@@ -361,22 +273,123 @@ float pid_yaw(float target, float real){
 	if(arm_mode == 0){
 		sum = 0.0f;
 	}
+	
 	if(sum > 0.05 || sum < -0.05){
 		summing = 0xff;
 	}else{
 		summing = 0x00;
 	}
-//	error_rate = -1.0f * real - pre_error;
-//	pre_error = -1.0f * real;
 	
 	d_error = 0.0f - real;
-	error_rate = d_error - pre_error;
+	error_rate = (d_error - pre_error) / dt;
 	pre_error = d_error;
 	
-	d_out =  pid_N * error_rate + (1.0f - pid_N) * d_out_1;
+	d_out =  pid_N * error_rate + (1.0f - pid_N) * d_out_1; //D filter
 	d_out_1 = d_out;
 
-	result = mat_pid[2][0]*target + mat_pid[2][1]*error + mat_pid[2][2]*sum + mat_pid[2][3]*d_out;
+	result = mat_pid[0][0]*target + mat_pid[0][1]*(error + mat_pid[0][2]*sum + mat_pid[0][3]*d_out);
+	return result;
+}
+
+float pid_pitch(float target, float real, float dt){
+	static float error;
+	static float sum;
+	static float pre_error;
+	static float result;
+	static float error_rate;
+	static float d_out_1;
+	static float d_out;
+	static float d_error;
+	
+	error = target - real;
+	sum = sum + error * dt;
+	
+	if(sum > 3.0f){
+		sum = 3.0;
+	}
+	if(sum < -3.0f){
+		sum = -3.0;
+	}
+	
+	if(error > 3.14f){
+		sum = 0.0f;
+	}
+	if(error < -3.14f){
+		sum = 0.0f;
+	}
+	if(throttle_set < 100.0f){
+		sum = 0.0f;
+	}
+	if(arm_mode == 0){
+		sum = 0.0f;
+	}
+	
+	if(sum > 0.05 || sum < -0.05){
+		summing = 0xff;
+	}else{
+		summing = 0x00;
+	}
+	
+	d_error = 0.0f - real;
+	error_rate = (d_error - pre_error) / dt;
+	pre_error = d_error;
+	
+	d_out =  pid_N * error_rate + (1.0f - pid_N) * d_out_1; //D filter
+	d_out_1 = d_out;
+
+	result = mat_pid[1][0]*target + mat_pid[1][1]*(error + mat_pid[1][2]*sum + mat_pid[1][3]*d_out);
+	return result;
+}
+
+
+
+float pid_yaw(float target, float real, float dt){
+	static float error;
+	static float sum;
+	static float pre_error;
+	static float result;
+	static float error_rate;
+	static float d_out_1;
+	static float d_out;
+	static float d_error;
+	
+	error = target - real;
+	sum = sum + error * dt;
+	
+	if(sum > 3.0f){
+		sum = 3.0;
+	}
+	if(sum < -3.0f){
+		sum = -3.0;
+	}
+	
+	if(error > 3.14f){
+		sum = 0.0f;
+	}
+	if(error < -3.14f){
+		sum = 0.0f;
+	}
+	if(throttle_set < 100.0f){
+		sum = 0.0f;
+	}
+	if(arm_mode == 0){
+		sum = 0.0f;
+	}
+	
+	if(sum > 0.05 || sum < -0.05){
+		summing = 0xff;
+	}else{
+		summing = 0x00;
+	}
+	
+	d_error = 0.0f - real;
+	error_rate = (d_error - pre_error) / dt;
+	pre_error = d_error;
+	
+	d_out =  pid_N * error_rate + (1.0f - pid_N) * d_out_1; //D filter
+	d_out_1 = d_out;
+
+	result = mat_pid[2][0]*target + mat_pid[2][1]*(error + mat_pid[2][2]*sum + mat_pid[2][3]*d_out);
 	return result;
 }
 
@@ -479,43 +492,6 @@ float pid_angle_yaw(float error){
 	return result;
 }
 
-float pid_throttle_safe(float measure_dp){
-	static float error;
-	static float sum;
-	static float pre_error;
-	static float result;
-	static float error_rate;
-	error = safe_dp - measure_dp;
-	sum = sum + error;
-	if(sum > 500.0){
-		sum = 500.0;
-	}
-	if(sum < -500.0){
-		sum = -500.0;
-	}
-	if(error > 20.0f){
-		sum = 0.0f;
-	}
-	if(error < -20.0f){
-		sum = 0.0f;
-	}
-	if(arm_mode == 0){
-		sum = 0.0f;
-	}
-	if(error < 0.0f){
-		error = 0.0f;
-		pre_error = 0.0f;
-		sum = 0.0f;
-	}
-//	error_rate = -1.0f * real - pre_error;
-//	pre_error = -1.0f * real;
-	
-	error_rate = error - pre_error;
-	pre_error = error;
-	result = pid_safe_dp[0]*error + pid_safe_dp[1]*sum + pid_safe_dp[2]*error_rate;
-	return result;
-}
-
 uint8_t tx6_buff[36];
 	
 float output_roll;
@@ -537,7 +513,6 @@ Quaternion yaw_to_quaternion(double yaw) {
     return quaternion;
 }
 
-// Function to convert pitch angle (rotation around Y-axis) to quaternion
 Quaternion pitch_to_quaternion(double pitch) {
     Quaternion quaternion;
     quaternion.w = cos(pitch / 2);
@@ -672,6 +647,7 @@ void chassis_task(void const *pvParameters)
 		tx6_buff[5] = 0x00;
 		tx6_buff[6] = 0x80;
 		tx6_buff[7] = 0x7F;
+	
 		cali_cnt = 0;
 		system_mode = 2;
 
@@ -687,79 +663,36 @@ void chassis_task(void const *pvParameters)
 //					cali_cnt = cali_cnt + 1;
 //					cali_imu_num = cali_imu_num + 0.00001 * gyro_data[1];
 //				}
-			
-//				if(Sbus_ctrl.ch[4] > 1500){
-//					system_mode = 0;
-//				}else {
-//					if(Sbus_ctrl.ch[4] > 500){
-//						system_mode = 1;
-//					}else{
-//						system_mode = 2;
-//					}
-//				}
-			
-				if(Sbus_ctrl.ch[6] > 1500){
-					arm_mode = 0xff;
-				}else{
-					arm_mode = 0x00;
-				}
-				
-				//if(Sbus_ctrl.ch[8] > 1500){
-				if(0){
-					stick_mode = stick_3d;
-				}else{
-					stick_mode = stick_heli;
-				}
-				
-				if(Sbus_ctrl.ch[7] > 1000){
-					is_load = 0x00;
-					if(Sbus_ctrl.ch[7] > 1500){
-						door_open = 0xff;
-					}else{
-						door_open = 0x00;
-					}
-				}else{
-					is_load = 0xff;
-					door_open = 0x00;
-				}
-				
+
 				if(Sbus_ctrl.ch[5] > 1500){
 					ctrl_mode = 2;
 				}else{
 					ctrl_mode = 1;
 				}
 				
+				if(Sbus_ctrl.ch[6] > 1500){
+					arm_mode_stick = 0xff;
+				}else{
+					arm_mode_stick = 0x00;
+				}
+				
+				if(ctrl_mode != 3){//不在板外模式时，起停桨听从拨杆，都是上升或下降沿出发起停桨命令，不是拨杆位置，板外模式时不响应拨杆起停桨
+					if(arm_mode_stick != arm_mode_stick_pre){
+						arm_mode_stick_pre = arm_mode_stick;
+						arm_mode = arm_mode_stick;
+					}
+				}else{
+					arm_mode_stick_pre = arm_mode_stick;//假设突然退出板外，由板外起桨时拨杆没放在解锁位，退出时没有发生杆位变化，不会触发空中停桨
+					//在板外起桨后进入板内也不会停桨
+				}
+
+				stick_mode = stick_heli;
+				
 				float throttle_in = d_ch(2) / 2.0f + 500.0f;
 				float yaw_in = d_ch(3) / 2.0f;
 				float roll_in = d_ch(0) / 2.0f;
 				float pitch_in = d_ch(1) / -2.0f;
 				throttle_set = throttle_in;
-
-				if(door_open){
-					if(!pre_door_open){
-						door_open_idle = 3000;
-					}
-				}else{
-					door_open_idle = 0;
-				}
-				pre_door_open = door_open;
-				
-				if(door_open_idle > 0){
-					servo_pwm[4] = door_open_pwm;
-					door_open_idle = door_open_idle - 1;
-				}
-				else{
-					servo_pwm[4] = door_close_pwm;
-				}
-				
-				if(is_load != pre_is_load){
-					if(is_load == 0x00){
-						pid_set_empty();
-					}else{
-						pid_set_heavy();
-					}
-					pre_is_load = is_load;
-				}
 
 				if(system_mode == 2){
 					float motor1;
@@ -777,7 +710,7 @@ void chassis_task(void const *pvParameters)
 					target_quaternion.z = 0.0f;
 					
 					Quaternion temp_quaternion;
-					temp_quaternion = pitch_to_quaternion(-1.5707963f + d_ch(1) * 0.0020708f);
+					temp_quaternion = pitch_to_quaternion(d_ch(1) * 0.0020708f);
 					target_quaternion = multiply_quaternion(&temp_quaternion, &target_quaternion);
 					temp_quaternion = roll_to_quaternion(d_ch(0) * -9.85398e-4);
 					target_quaternion = multiply_quaternion(&temp_quaternion, &target_quaternion);
@@ -799,6 +732,7 @@ void chassis_task(void const *pvParameters)
 					w_yaw_world[0] = 0.0f;
 					w_yaw_world[1] = 0.0f;
 					w_yaw_world[2] = d_ch(3) * -0.002341f;
+					
 					World_to_Body(w_yaw_world, w_yaw_body, measure_quaternion);
 
 					if(ctrl_mode == 2){
@@ -827,7 +761,7 @@ void chassis_task(void const *pvParameters)
 					}
 					
 					if(ctrl_mode == 1){
-						if(stick_mode == stick_3d){
+						if(stick_mode == stick_heli){
 							target_velocity_roll = d_ch(0) * 0.002341f;
 							target_velocity_pitch = d_ch(1) * -0.002341f;
 							target_velocity_yaw = d_ch(3) * -0.002341f;
@@ -841,22 +775,22 @@ void chassis_task(void const *pvParameters)
 					imu_roll = -gyro_data[1];
 					imu_pitch = -gyro_data[0];
 					imu_yaw = gyro_data[2];
+					
 					float roll_in = applyButterworthFilter(&omega_x_filter, imu_roll);
 					float pitch_in = applyButterworthFilter(&omega_y_filter, imu_pitch);
 					float yaw_in = applyButterworthFilter(&omega_z_filter, imu_yaw);
-					output_roll = pid_roll(target_velocity_roll, roll_in);
-					output_pitch = pid_pitch(target_velocity_pitch, pitch_in);
-					output_yaw = pid_yaw(target_velocity_yaw, yaw_in);
-					//memcpy(&tx6_buff[0], &throttle_in, 4);
-					usart6_tx_dma_enable(tx6_buff, 8);
-
-					float throttle_pull_up = pid_throttle_safe(filtered_dp);
-					//throttle_in = throttle_in + throttle_pull_up;
 					
-					float f1 = 0.0 + output_roll - output_pitch + output_yaw + throttle_in;
-					float f2 = 0.0 - output_roll - output_pitch - output_yaw + throttle_in;
-					float f3 = 0.0 + output_roll + output_pitch - output_yaw + throttle_in;
-					float f4 = 0.0 - output_roll + output_pitch + output_yaw + throttle_in;
+					output_roll = pid_roll(target_velocity_roll, roll_in, 0.001);
+					output_pitch = pid_pitch(target_velocity_pitch, pitch_in, 0.001);
+					output_yaw = pid_yaw(target_velocity_yaw, yaw_in, 0.001);
+					
+					//memcpy(&tx6_buff[0], &throttle_in, 4);
+					//usart6_tx_dma_enable(tx6_buff, 8);
+					
+					float f1 = 0.0 - output_roll + output_pitch - output_yaw + throttle_in;
+					float f2 = 0.0 + output_roll + output_pitch + output_yaw + throttle_in;
+					float f3 = 0.0 - output_roll - output_pitch + output_yaw + throttle_in;
+					float f4 = 0.0 + output_roll - output_pitch - output_yaw + throttle_in;
 					
 					
 					if(f1 > 1000.0f){

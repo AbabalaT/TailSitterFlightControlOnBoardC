@@ -60,11 +60,11 @@ extern fp32 throttle_out, roll_out, pitch_out, yaw_out;
 void servo_task(void const * argument)
 {
     servo_rc = get_remote_control_point();
-	  servo_pwm[0] = 1800;
-	  servo_pwm[1] = 1200;
+	  servo_pwm[0] = 1000;
+	  servo_pwm[1] = 1000;
 	  servo_pwm[2] = 1000;
 	  servo_pwm[3] = 1000;
-	  servo_pwm[4] = 2000;
+	  servo_pwm[4] = 1500;
     while(1)
     {
 				for(uint8_t i = 0; i < 6; i=i+1)
