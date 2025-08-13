@@ -15,6 +15,8 @@
 
 static void chassis_init(chassis_move_t *chassis_move_init);
 
+uint8_t usb_servo = 0x00;
+
 typedef struct {
     float w, x, y, z;
 } Quaternion;
@@ -205,32 +207,32 @@ ButterworthFilter omega_x_filter, omega_y_filter, omega_z_filter;
 //}
 
 void pid_set_heavy(void){
-	mat_pid[0][0] = 0.0;
-	mat_pid[0][1] = 100.0f;
-	mat_pid[0][2] = 0.0;
-	mat_pid[0][3] = 0.0;
+	mat_pid[0][0] = 0.0;//roll
+	mat_pid[0][1] = 38.5f;
+	mat_pid[0][2] = 0.0005;
+	mat_pid[0][3] = 0.0005;
 	
-	mat_pid[1][0] = 0.0;
-	mat_pid[1][1] = 100.0f;
-	mat_pid[1][2] = 0.0;
-	mat_pid[1][3] = 0.0;
+	mat_pid[1][0] = 0.0;//pitch
+	mat_pid[1][1] = 38.5f;
+	mat_pid[1][2] = 0.0005;
+	mat_pid[1][3] = 0.0005;
 	
-	mat_pid[2][0] = 0.0;
-	mat_pid[2][1] = 100.0f;
-	mat_pid[2][2] = 0.0f;
-	mat_pid[2][3] = 0.0f;
+	mat_pid[2][0] = 0.0;//yaw
+	mat_pid[2][1] = 300.0f;
+	mat_pid[2][2] = 0.0025f;
+	mat_pid[2][3] = 0.001f;
 	
-	angle_pid_mat[0][0] = 1.5;
+	angle_pid_mat[0][0] = 2.4;
 	angle_pid_mat[0][1] = 0.0f;
-	angle_pid_mat[0][2] = 0.2f;
+	angle_pid_mat[0][2] = 0.07f;
 	
-	angle_pid_mat[1][0] = 1.5;
+	angle_pid_mat[1][0] = 2.4;
 	angle_pid_mat[1][1] = 0.0f;
-	angle_pid_mat[1][2] = 0.2f;
+	angle_pid_mat[1][2] = 0.07f;
 	
-	angle_pid_mat[2][0] = 1.5;
+	angle_pid_mat[2][0] = 2.4;
 	angle_pid_mat[2][1] = 0.0f;
-	angle_pid_mat[2][2] = 0.2f;
+	angle_pid_mat[2][2] = 0.07f;
 }
 
 void pid_init(void){
@@ -239,7 +241,9 @@ void pid_init(void){
 
 uint8_t summing = 0;
 
-float pid_N = 0.75f;
+short servo_shake = 20;
+
+float pid_N = 0.2f;
 
 float pid_roll(float target, float real, float dt){
 	static float error;
@@ -651,201 +655,53 @@ void chassis_task(void const *pvParameters)
 		cali_cnt = 0;
 		system_mode = 2;
 
-		initButterworthFilter(&omega_x_filter, 1000.0, 1.0);
-		initButterworthFilter(&omega_y_filter, 1000.0, 1.0);
-		initButterworthFilter(&omega_z_filter, 1000.0, 1.0);
+		initButterworthFilter(&omega_x_filter, 1000.0, 5.0);
+		initButterworthFilter(&omega_y_filter, 1000.0, 5.0);
+		initButterworthFilter(&omega_z_filter, 1000.0, 5.0);
 	
+		if(Sbus_ctrl.ch[6] > 1500){
+			arm_mode_stick = 0xff;
+		}else{
+			arm_mode_stick = 0x00;
+		}
+		arm_mode_stick_pre = arm_mode_stick;
+		arm_mode = 0x00;
+		unsigned short servo_pwm = 1000;
+		short servo_delta = 0;
+		uint8_t delta_flag = 0;
     while (1){
-				memcpy(&gyro_data, get_gyro_data_point(), 12);
-				memcpy(&angle_data, get_INS_angle_point(), 12);
+			if(usb_servo == 0x00){
+				servo_pwm = 1000;
+			}
+			if(usb_servo == 0x01){
+				servo_pwm = 550;
+			}
+			if(usb_servo == 0x02){
+				servo_pwm = 1450;
+			}
+			if(usb_servo == 0x03){
+				servo_pwm = 2350;
+			}
+			if(delta_flag == 0){
+				servo_delta += 10;
+			}else{
+				servo_delta -= 10;
+			}
+			if(servo_delta > servo_shake){
+				delta_flag = 0x01;
+			}
+			if(servo_delta < -servo_shake){
+				delta_flag = 0x00;
+			}
+			if(pwm_debugging){
+				if(usb_servo){
+					set_pwm(servo_pwm + servo_delta, 1500, 1500, 1500);
+				}else{
+					set_pwm(servo_pwm, 1500, 1500, 1500);
+				}
+				
+			}
 			
-//				if(cali_cnt < 100000){
-//					cali_cnt = cali_cnt + 1;
-//					cali_imu_num = cali_imu_num + 0.00001 * gyro_data[1];
-//				}
-
-				if(Sbus_ctrl.ch[5] > 1500){
-					ctrl_mode = 2;
-				}else{
-					ctrl_mode = 1;
-				}
-				
-				if(Sbus_ctrl.ch[6] > 1500){
-					arm_mode_stick = 0xff;
-				}else{
-					arm_mode_stick = 0x00;
-				}
-				
-				if(ctrl_mode != 3){//不在板外模式时，起停桨听从拨杆，都是上升或下降沿出发起停桨命令，不是拨杆位置，板外模式时不响应拨杆起停桨
-					if(arm_mode_stick != arm_mode_stick_pre){
-						arm_mode_stick_pre = arm_mode_stick;
-						arm_mode = arm_mode_stick;
-					}
-				}else{
-					arm_mode_stick_pre = arm_mode_stick;//假设突然退出板外，由板外起桨时拨杆没放在解锁位，退出时没有发生杆位变化，不会触发空中停桨
-					//在板外起桨后进入板内也不会停桨
-				}
-
-				stick_mode = stick_heli;
-				
-				float throttle_in = d_ch(2) / 2.0f + 500.0f;
-				float yaw_in = d_ch(3) / 2.0f;
-				float roll_in = d_ch(0) / 2.0f;
-				float pitch_in = d_ch(1) / -2.0f;
-				throttle_set = throttle_in;
-
-				if(system_mode == 2){
-					float motor1;
-					float motor2;
-					float motor3;
-					float motor4;
-					
-					memcpy(&measure_quaternion, &ahrs_quaternion, 16);
-					Quaternion de_yaw_quaternion = yaw_to_quaternion(-angle_data[0]);
-					Quaternion de_yaw_ahrs = multiply_quaternion(&de_yaw_quaternion, &measure_quaternion);
-					
-					target_quaternion.w = 1.0f;
-					target_quaternion.x = 0.0f;
-					target_quaternion.y = 0.0f;
-					target_quaternion.z = 0.0f;
-					
-					Quaternion temp_quaternion;
-					temp_quaternion = pitch_to_quaternion(d_ch(1) * 0.0020708f);
-					target_quaternion = multiply_quaternion(&temp_quaternion, &target_quaternion);
-					temp_quaternion = roll_to_quaternion(d_ch(0) * -9.85398e-4);
-					target_quaternion = multiply_quaternion(&temp_quaternion, &target_quaternion);
-					
-					temp_quaternion = quaternion_diff(de_yaw_ahrs, target_quaternion);
-					quaternionToAngles(temp_quaternion, &error_angle[0], &error_angle[1], &error_angle[2]);
-					
-					if(isnan(error_angle[0])){
-						error_angle[0] = 0.0f;
-					}
-					if(isnan(error_angle[1])){
-						error_angle[1] = 0.0f;
-					}
-					if(isnan(error_angle[2])){
-						error_angle[2] = 0.0f;
-					}
-					World_to_Body(error_angle, error_body, de_yaw_ahrs);
-
-					w_yaw_world[0] = 0.0f;
-					w_yaw_world[1] = 0.0f;
-					w_yaw_world[2] = d_ch(3) * -0.002341f;
-					
-					World_to_Body(w_yaw_world, w_yaw_body, measure_quaternion);
-
-					if(ctrl_mode == 2){
-						target_velocity_pitch = pid_angle_pitch(-error_body[0]) - w_yaw_body[0];
-						target_velocity_roll = pid_angle_roll(-error_body[1]) - w_yaw_body[1];
-						target_velocity_yaw = pid_angle_yaw(error_body[2]) + w_yaw_body[2];
-						
-						if(target_velocity_pitch > 3.0f){
-							target_velocity_pitch = 3.0f;
-						}
-						if(target_velocity_pitch < -3.0f){
-							target_velocity_pitch = -3.0f;
-						}
-						if(target_velocity_roll > 3.0f){
-							target_velocity_roll = 3.0f;
-						}
-						if(target_velocity_roll < -3.0f){
-							target_velocity_roll = -3.0f;
-						}
-						if(target_velocity_yaw > 3.0f){
-							target_velocity_yaw = 3.0f;
-						}
-						if(target_velocity_yaw < -3.0f){
-							target_velocity_yaw = -3.0f;
-						}
-					}
-					
-					if(ctrl_mode == 1){
-						if(stick_mode == stick_heli){
-							target_velocity_roll = d_ch(0) * 0.002341f;
-							target_velocity_pitch = d_ch(1) * -0.002341f;
-							target_velocity_yaw = d_ch(3) * -0.002341f;
-						}else{
-							target_velocity_roll = d_ch(3) * -0.002341f;
-							target_velocity_pitch = d_ch(1) * -0.002341f;
-							target_velocity_yaw = d_ch(0) * -0.002341f;
-						}
-					}
-					
-					imu_roll = -gyro_data[1];
-					imu_pitch = -gyro_data[0];
-					imu_yaw = gyro_data[2];
-					
-					float roll_in = applyButterworthFilter(&omega_x_filter, imu_roll);
-					float pitch_in = applyButterworthFilter(&omega_y_filter, imu_pitch);
-					float yaw_in = applyButterworthFilter(&omega_z_filter, imu_yaw);
-					
-					output_roll = pid_roll(target_velocity_roll, roll_in, 0.001);
-					output_pitch = pid_pitch(target_velocity_pitch, pitch_in, 0.001);
-					output_yaw = pid_yaw(target_velocity_yaw, yaw_in, 0.001);
-					
-					//memcpy(&tx6_buff[0], &throttle_in, 4);
-					//usart6_tx_dma_enable(tx6_buff, 8);
-					
-					float f1 = 0.0 - output_roll + output_pitch - output_yaw + throttle_in;
-					float f2 = 0.0 + output_roll + output_pitch + output_yaw + throttle_in;
-					float f3 = 0.0 - output_roll - output_pitch + output_yaw + throttle_in;
-					float f4 = 0.0 + output_roll - output_pitch - output_yaw + throttle_in;
-					
-					
-					if(f1 > 1000.0f){
-						f1 = 1000.0f;
-					}
-					if(f1 < 0.0f){
-						f1 = 0.0f;
-					}
-					if(f2 > 1000.0f){
-						f2 = 1000.0f;
-					}
-					if(f2 < 0.0f){
-						f2 = 0.0f;
-					}
-					if(f3 > 1000.0f){
-						f3 = 1000.0f;
-					}
-					if(f3 < 0.0f){
-						f3 = 0.0f;
-					}
-					if(f4 > 1000.0f){
-						f4 = 1000.0f;
-					}
-					if(f4 < 0.0f){
-						f4 = 0.0f;
-					}
-					
-					motor1 = f1 + 1000;
-					motor2 = f2 + 1000;
-					motor3 = f3 + 1000;
-					motor4 = f4 + 1000;
-
-					if(arm_mode == 0){
-						motor1 = 1000;
-						motor2 = 1000;
-						motor3 = 1000;
-						motor4 = 1000;
-					}else{
-						if(motor1 < motor_idle_speed){
-							motor1 = motor_idle_speed;
-						}
-						if(motor2 < motor_idle_speed){
-							motor2 = motor_idle_speed;
-						}
-						if(motor3 < motor_idle_speed){
-							motor3 = motor_idle_speed;
-						}
-						if(motor4 < motor_idle_speed){
-							motor4 = motor_idle_speed;
-						}
-					}					
-					if(pwm_debugging){
-						set_pwm(motor1, motor2, motor3, motor4);
-					}
-				}
-				vTaskDelay(1);//PID频率:1000HZ
+			vTaskDelay(20);//PID频率:1000HZ
 		}
 }

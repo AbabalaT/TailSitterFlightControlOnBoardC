@@ -21,8 +21,8 @@
 #include "bsp_servo_pwm.h"
 #include "remote_control.h"
 
-#define SERVO_MIN_PWM   1000
-#define SERVO_MAX_PWM   2000
+#define SERVO_MIN_PWM   500
+#define SERVO_MAX_PWM   2500
 
 #define PWM_DETAL_VALUE 10
 
@@ -83,7 +83,7 @@ void servo_task(void const * argument)
             }
 						servo_pwm_set(servo_pwm[i], i);
         }
-        osDelay(5);
+        osDelay(10);
     }
 }
 
